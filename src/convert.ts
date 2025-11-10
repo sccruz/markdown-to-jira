@@ -55,23 +55,23 @@ function formatTypeScriptCode(code: string): string {
   const lines = code.split('\n');
   let indentLevel = 0;
   const indentSize = 2;
-  
+
   return lines.map(line => {
     const trimmed = line.trim();
-    
+
     // Decrease indent for closing braces/brackets
     if (trimmed.startsWith('}') || trimmed.startsWith(']') || trimmed.startsWith(')')) {
       indentLevel = Math.max(0, indentLevel - 1);
     }
-    
+
     // Apply indentation
     const indented = ' '.repeat(indentLevel * indentSize) + trimmed;
-    
+
     // Increase indent for opening braces/brackets
     if (trimmed.endsWith('{') || trimmed.endsWith('[') || trimmed.endsWith('(')) {
       indentLevel++;
     }
-    
+
     return indented;
   }).join('\n');
 }
@@ -83,23 +83,23 @@ function formatJavaCode(code: string): string {
   const lines = code.split('\n');
   let indentLevel = 0;
   const indentSize = 4; // Java typically uses 4 spaces
-  
+
   return lines.map(line => {
     const trimmed = line.trim();
-    
+
     // Decrease indent for closing braces
     if (trimmed.startsWith('}')) {
       indentLevel = Math.max(0, indentLevel - 1);
     }
-    
+
     // Apply indentation
     const indented = ' '.repeat(indentLevel * indentSize) + trimmed;
-    
+
     // Increase indent for opening braces
     if (trimmed.endsWith('{')) {
       indentLevel++;
     }
-    
+
     return indented;
   }).join('\n');
 }
@@ -276,14 +276,21 @@ export class JiraRenderer extends Renderer {
   }
   list (body: string, ordered: boolean): string {
     const type = ordered ? '#' : '*'
-    const result = `${
-      body.trim()
+    const lines = body.trim()
       .split('\n')
       .filter(v => v)
-      .map(line => `\n${type} ${line}`)
-      .join('')
-      .replaceAll("* *", "**")
-    }\n\n`
+      .map(line => {
+        // Check if this line already starts with a list marker (nested list)
+        // If so, we need to convert "* " or " * " to "** " (two asterisks for nested)
+        if (line.trim().startsWith('* ') || line.trim().startsWith('# ')) {
+          // This is a nested list item, convert to nested format
+          return `\n ** ${line.trim().substring(2)}`
+        }
+        // Regular list item
+        return `\n ${type} ${line}`
+      })
+    const joined = lines.join('')
+    const result = `${joined}\n\n`
     return result
   }
   listitem (body: string): string {
@@ -306,13 +313,14 @@ export class JiraRenderer extends Renderer {
     // Format the code first
     const formattedCode = formatCode(code, lang);
     dbg(`Formatted code: ${formattedCode}, type: ${typeof formattedCode}`);
-    
-    // Ensure we have a string to work with
+
+    // Use formatted code if available, otherwise fall back to original
+    // formattedCode will be the original code if formatting failed or language not supported
     const safeCode = formattedCode || code;
-    
+
     // Don't escape curly brackets in code blocks - JIRA doesn't need it
     // Curly brackets in {code} blocks are treated as literal text
-    
+
     return `{code:language=${langMap[lang] ?? ''}|borderStyle=solid|theme=RDark|linenumbers=true|collapse=${safeCode.split('\n').length > MAX_CODE_LINE}}\n${safeCode}\n{code}\n\n`
   }
   text(text: string): string {
@@ -343,22 +351,32 @@ export function convert(markdown: string): string {
  * Additional post-processing for HTML conversion edge cases
  */
 function postProcessHtmlConversion(text: string): string {
-  let processed = text;
+  // Process code blocks separately to preserve formatting
+  return processCodeBlockLines(
+    text,
+    line => line, // start code - don't modify
+    line => line, // in code - don't modify (preserve indentation)
+    line => line, // end code - don't modify
+    line => {
+      // Out of code block - apply HTML entity fixes and whitespace cleanup
+      let processed = line;
 
-  // Fix any remaining HTML entities
-  processed = processed.replace(/&lt;/g, '<');
-  processed = processed.replace(/&gt;/g, '>');
-  processed = processed.replace(/&amp;/g, '&');
-  processed = processed.replace(/&quot;/g, '"');
-  processed = processed.replace(/&#39;/g, "'");
-  processed = processed.replace(/&nbsp;/g, ' ');
+      // Fix any remaining HTML entities
+      processed = processed.replace(/&lt;/g, '<');
+      processed = processed.replace(/&gt;/g, '>');
+      processed = processed.replace(/&amp;/g, '&');
+      processed = processed.replace(/&quot;/g, '"');
+      processed = processed.replace(/&#39;/g, "'");
+      processed = processed.replace(/&nbsp;/g, ' ');
 
-  // Clean up excessive whitespace
-  processed = processed.replace(/[ \t]+/g, ' ');
-  processed = processed.replace(/\n[ \t]+/g, '\n');
-  processed = processed.replace(/[ \t]+\n/g, '\n');
+      // Clean up excessive whitespace (but preserve indentation in code blocks)
+      processed = processed.replace(/[ \t]+/g, ' ');
+      processed = processed.replace(/\n[ \t]+/g, '\n');
+      processed = processed.replace(/[ \t]+\n/g, '\n');
 
-  return processed;
+      return processed;
+    }
+  );
 }
 
 /**

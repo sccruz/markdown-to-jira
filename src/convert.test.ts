@@ -29,36 +29,42 @@ test.it('should add green color to inline code', () => {
   test.expect(convert("`{documentId}`").trim()).toEqual("{color:#00875a}{{\\{documentId\\}}}{color}")
 })
 
-test.it('should escape curly brackets in code blocks', () => {
+test.it('should not escape curly brackets in code blocks (Jira handles them literally)', () => {
   const input = "```typescript\ninterface Example {\n  field: string;\n}\n```"
   const result = convert(input).trim()
-  test.expect(result).toContain("\\{")
-  test.expect(result).toContain("\\}")
-  test.expect(result).not.toContain("{field: string;}")
+  // Jira code blocks treat curly brackets literally, so they should NOT be escaped
+  test.expect(result).not.toContain("\\{")
+  test.expect(result).not.toContain("\\}")
+  test.expect(result).toContain("{")
+  test.expect(result).toContain("}")
+  test.expect(result).toContain("field: string;")
 })
 
 test.it('should format code with proper indentation', () => {
   const input = "```typescript\ninterface Example{\nfield1:string;\nfield2:number;\nnested:{\nvalue:boolean;\n}\n}\n```"
   const result = convert(input).trim()
-  // The formatting should work, but escaping breaks indentation
-  // So we just check that the basic structure is there
+  // Check that the basic structure is there
   test.expect(result).toContain("field1:string;")
   test.expect(result).toContain("field2:number;")
   test.expect(result).toContain("value:boolean;")
-  // Should have escaped curly brackets
-  test.expect(result).toContain("\\{")
-  test.expect(result).toContain("\\}")
+  // Jira code blocks treat curly brackets literally, so they should NOT be escaped
+  test.expect(result).not.toContain("\\{")
+  test.expect(result).not.toContain("\\}")
+  test.expect(result).toContain("{")
+  test.expect(result).toContain("}")
 })
 
 test.it('should handle JSON formatting', () => {
   const input = "```json\n{\"name\":\"test\",\"value\":123}\n```"
   const result = convert(input).trim()
-  // Should format JSON with proper indentation (with escaped curly brackets)
+  // Should format JSON with proper indentation
   test.expect(result).toContain("\"name\": \"test\",")
   test.expect(result).toContain("\"value\": 123")
-  // Should have escaped curly brackets
-  test.expect(result).toContain("\\{")
-  test.expect(result).toContain("\\}")
+  // Jira code blocks treat curly brackets literally, so they should NOT be escaped
+  test.expect(result).not.toContain("\\{")
+  test.expect(result).not.toContain("\\}")
+  test.expect(result).toContain("{")
+  test.expect(result).toContain("}")
 })
 
 test.it('should handle HTML conversion with green color', () => {
@@ -105,4 +111,18 @@ test.it('should not escape curly brackets in code blocks', () => {
   test.expect(result).not.toContain("\\}")
   test.expect(result).toContain("{")
   test.expect(result).toContain("}")
+})
+
+test.it('should handle nested lists with bold text correctly', () => {
+  const input = `**Technical Notes**
+- **Files to modify:**
+  - \`hospitality-documents/hospitality-documents-domain/src/main/java/com/flywire/hospitality/documents/responses/FieldMetadataResponse.java\` - Add new fields
+  - \`hospitality-documents/hospitality-documents-domain/src/main/java/com/flywire/hospitality/documents/mappings/FieldMetadataMapper.java\` - Add field mappings`
+  const result = convert(input).trim()
+  // Should have space between list marker and bold marker (not **Files)
+  test.expect(result).toContain("* *Files to modify:*")
+  // Should have proper nested list markers (two asterisks)
+  test.expect(result).toContain("** {color:#00875a}{{")
+  // Should not have **Files to modify:* (missing space between list marker and bold)
+  test.expect(result).not.toContain("**Files to modify:*")
 })
