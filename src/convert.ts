@@ -7,6 +7,103 @@ export function verbose() {
 }
 
 export const MAX_CODE_LINE = 20 as const
+
+/**
+ * Format code with basic indentation for supported languages
+ */
+function formatCode(code: string, language: string): string {
+  try {
+    const lang = language.toLowerCase();
+
+    // Only format supported languages
+    if (!['typescript', 'ts', 'javascript', 'js', 'json', 'java'].includes(lang)) {
+      return code;
+    }
+
+    if (lang === 'json') {
+      // Format JSON with proper indentation
+      try {
+        const parsed = JSON.parse(code);
+        return JSON.stringify(parsed, null, 2);
+      } catch {
+        return code;
+      }
+    }
+
+    // For TypeScript/JavaScript, apply basic formatting
+    if (['typescript', 'ts', 'javascript', 'js'].includes(lang)) {
+      return formatTypeScriptCode(code);
+    }
+
+    // For Java, apply Java-specific formatting
+    if (['java'].includes(lang)) {
+      return formatJavaCode(code);
+    }
+
+    return code;
+  } catch (error) {
+    // If formatting fails, return original code
+    dbg(`Code formatting failed for ${language}: ${error}`);
+    return code;
+  }
+}
+
+/**
+ * Basic TypeScript/JavaScript formatting with 2-space indentation
+ */
+function formatTypeScriptCode(code: string): string {
+  const lines = code.split('\n');
+  let indentLevel = 0;
+  const indentSize = 2;
+
+  return lines.map(line => {
+    const trimmed = line.trim();
+
+    // Decrease indent for closing braces/brackets
+    if (trimmed.startsWith('}') || trimmed.startsWith(']') || trimmed.startsWith(')')) {
+      indentLevel = Math.max(0, indentLevel - 1);
+    }
+
+    // Apply indentation
+    const indented = ' '.repeat(indentLevel * indentSize) + trimmed;
+
+    // Increase indent for opening braces/brackets
+    if (trimmed.endsWith('{') || trimmed.endsWith('[') || trimmed.endsWith('(')) {
+      indentLevel++;
+    }
+
+    return indented;
+  }).join('\n');
+}
+
+/**
+ * Basic Java formatting with 4-space indentation
+ */
+function formatJavaCode(code: string): string {
+  const lines = code.split('\n');
+  let indentLevel = 0;
+  const indentSize = 4; // Java typically uses 4 spaces
+
+  return lines.map(line => {
+    const trimmed = line.trim();
+
+    // Decrease indent for closing braces
+    if (trimmed.startsWith('}')) {
+      indentLevel = Math.max(0, indentLevel - 1);
+    }
+
+    // Apply indentation
+    const indented = ' '.repeat(indentLevel * indentSize) + trimmed;
+
+    // Increase indent for opening braces
+    if (trimmed.endsWith('{')) {
+      indentLevel++;
+    }
+
+    return indented;
+  }).join('\n');
+}
+
 export const langMap = {
   shell: 'bash',
   bash: 'bash',
@@ -44,53 +141,53 @@ export const langMap = {
  */
 function convertHtmlToJira(html: string): string {
   let converted = html;
-  
+
   // Line breaks
   converted = converted.replace(/<br\s*\/?>/gi, '\n');
-  
+
   // Bold tags
   converted = converted.replace(/<(strong|b)>/gi, '*');
   converted = converted.replace(/<\/(strong|b)>/gi, '*');
-  
+
   // Italic tags
   converted = converted.replace(/<(em|i)>/gi, '_');
   converted = converted.replace(/<\/(em|i)>/gi, '_');
-  
+
   // Underline tags
   converted = converted.replace(/<u>/gi, '+');
   converted = converted.replace(/<\/u>/gi, '+');
-  
+
   // Strikethrough tags
   converted = converted.replace(/<(s|strike|del)>/gi, '-');
   converted = converted.replace(/<\/(s|strike|del)>/gi, '-');
-  
+
   // Code tags (inline)
-  converted = converted.replace(/<code>/gi, '{{');
-  converted = converted.replace(/<\/code>/gi, '}}');
-  
+  converted = converted.replace(/<code>/gi, '{color:#00875a}{{');
+  converted = converted.replace(/<\/code>/gi, '}}{color}');
+
   // Preformatted text
   converted = converted.replace(/<pre>/gi, '{noformat}');
   converted = converted.replace(/<\/pre>/gi, '{noformat}');
-  
+
   // Blockquote
   converted = converted.replace(/<blockquote>/gi, '{quote}');
   converted = converted.replace(/<\/blockquote>/gi, '{quote}');
-  
+
   // Headings
   converted = converted.replace(/<h([1-6])>/gi, (match, level) => `h${level}. `);
   converted = converted.replace(/<\/h[1-6]>/gi, '\n\n');
-  
+
   // Paragraphs
   converted = converted.replace(/<p>/gi, '');
   converted = converted.replace(/<\/p>/gi, '\n\n');
-  
+
   // Links
   converted = converted.replace(/<a\s+href="([^"]*)"[^>]*>([^<]*)<\/a>/gi, '[$2|$1]');
   converted = converted.replace(/<a\s+href="([^"]*)"[^>]*><\/a>/gi, '[$1]');
-  
+
   // Images
   converted = converted.replace(/<img\s+src="([^"]*)"[^>]*>/gi, '!$1!');
-  
+
   // Lists - this is more complex, handle basic cases
   converted = converted.replace(/<ul>/gi, '');
   converted = converted.replace(/<\/ul>/gi, '\n');
@@ -98,7 +195,7 @@ function convertHtmlToJira(html: string): string {
   converted = converted.replace(/<\/ol>/gi, '\n');
   converted = converted.replace(/<li>/gi, '* ');
   converted = converted.replace(/<\/li>/gi, '\n');
-  
+
   // Tables - basic support
   converted = converted.replace(/<table[^>]*>/gi, '');
   converted = converted.replace(/<\/table>/gi, '\n');
@@ -112,24 +209,24 @@ function convertHtmlToJira(html: string): string {
   converted = converted.replace(/<\/tbody>/gi, '');
   converted = converted.replace(/<thead[^>]*>/gi, '');
   converted = converted.replace(/<\/thead>/gi, '');
-  
+
   // Horizontal rule
   converted = converted.replace(/<hr\s*\/?>/gi, '----\n');
-  
+
   // Div tags - just remove them but keep content
   converted = converted.replace(/<div[^>]*>/gi, '');
   converted = converted.replace(/<\/div>/gi, '\n');
-  
+
   // Span tags - remove but keep content
   converted = converted.replace(/<span[^>]*>/gi, '');
   converted = converted.replace(/<\/span>/gi, '');
-  
+
   // Clean up any remaining HTML tags (strip them)
   converted = converted.replace(/<[^>]*>/g, '');
-  
+
   // Clean up excessive newlines
   converted = converted.replace(/\n{3,}/g, '\n\n');
-  
+
   return converted;
 }
 
@@ -160,7 +257,9 @@ export class JiraRenderer extends Renderer {
   }
   codespan (text: string): string {
     dbg(`Codespan: ${text}`)
-    return `{{${text}}}`
+    // Escape curly brackets in inline code
+    const escapedText = text.replace(/\{/g, '\\{').replace(/\}/g, '\\}');
+    return `{color:#00875a}{{${escapedText}}}{color}`
   }
   blockquote (quote: string): string {
     dbg(`Blockquote: ${quote}`)
@@ -177,14 +276,21 @@ export class JiraRenderer extends Renderer {
   }
   list (body: string, ordered: boolean): string {
     const type = ordered ? '#' : '*'
-    const result = `${
-      body.trim()
+    const lines = body.trim()
       .split('\n')
       .filter(v => v)
-      .map(line => `\n${type} ${line}`)
-      .join('')
-      .replaceAll("* *", "**")
-    }\n\n`
+      .map(line => {
+        // Check if this line already starts with a list marker (nested list)
+        // If so, we need to convert "* " or " * " to "** " (two asterisks for nested)
+        if (line.trim().startsWith('* ') || line.trim().startsWith('# ')) {
+          // This is a nested list item, convert to nested format
+          return `\n ** ${line.trim().substring(2)}`
+        }
+        // Regular list item
+        return `\n ${type} ${line}`
+      })
+    const joined = lines.join('')
+    const result = `${joined}\n\n`
     return result
   }
   listitem (body: string): string {
@@ -204,7 +310,18 @@ export class JiraRenderer extends Renderer {
     return type + content
   }
   code (code: string, lang: keyof typeof langMap): string {
-    return `{code:language=${langMap[lang] ?? ''}|borderStyle=solid|theme=RDark|linenumbers=true|collapse=${code.split('\n').length > MAX_CODE_LINE}}\n${code}\n{code}\n\n`
+    // Format the code first
+    const formattedCode = formatCode(code, lang);
+    dbg(`Formatted code: ${formattedCode}, type: ${typeof formattedCode}`);
+
+    // Use formatted code if available, otherwise fall back to original
+    // formattedCode will be the original code if formatting failed or language not supported
+    const safeCode = formattedCode || code;
+
+    // Don't escape curly brackets in code blocks - JIRA doesn't need it
+    // Curly brackets in {code} blocks are treated as literal text
+
+    return `{code:language=${langMap[lang] ?? ''}|borderStyle=solid|theme=RDark|linenumbers=true|collapse=${safeCode.split('\n').length > MAX_CODE_LINE}}\n${safeCode}\n{code}\n\n`
   }
   text(text: string): string {
     dbg(`Text: ${text}`)
@@ -216,15 +333,16 @@ export class JiraRenderer extends Renderer {
 }
 
 export function convert(markdown: string): string {
-  let currentString = marked(markdown, { 
+  let currentString = marked(markdown, {
     renderer: new JiraRenderer(),
     gfm: true, // GitHub Flavored Markdown
     breaks: true // Convert line breaks to <br>
   });
-  
+
   currentString = fixCommentedCodeBlocks(currentString);
   currentString = fixDoubleUnderscore(currentString);
   currentString = postProcessHtmlConversion(currentString);
+  currentString = escapeApiEndpoints(currentString);
 
   return currentString;
 }
@@ -233,22 +351,32 @@ export function convert(markdown: string): string {
  * Additional post-processing for HTML conversion edge cases
  */
 function postProcessHtmlConversion(text: string): string {
-  let processed = text;
-  
-  // Fix any remaining HTML entities
-  processed = processed.replace(/&lt;/g, '<');
-  processed = processed.replace(/&gt;/g, '>');
-  processed = processed.replace(/&amp;/g, '&');
-  processed = processed.replace(/&quot;/g, '"');
-  processed = processed.replace(/&#39;/g, "'");
-  processed = processed.replace(/&nbsp;/g, ' ');
-  
-  // Clean up excessive whitespace
-  processed = processed.replace(/[ \t]+/g, ' ');
-  processed = processed.replace(/\n[ \t]+/g, '\n');
-  processed = processed.replace(/[ \t]+\n/g, '\n');
-  
-  return processed;
+  // Process code blocks separately to preserve formatting
+  return processCodeBlockLines(
+    text,
+    line => line, // start code - don't modify
+    line => line, // in code - don't modify (preserve indentation)
+    line => line, // end code - don't modify
+    line => {
+      // Out of code block - apply HTML entity fixes and whitespace cleanup
+      let processed = line;
+
+      // Fix any remaining HTML entities
+      processed = processed.replace(/&lt;/g, '<');
+      processed = processed.replace(/&gt;/g, '>');
+      processed = processed.replace(/&amp;/g, '&');
+      processed = processed.replace(/&quot;/g, '"');
+      processed = processed.replace(/&#39;/g, "'");
+      processed = processed.replace(/&nbsp;/g, ' ');
+
+      // Clean up excessive whitespace (but preserve indentation in code blocks)
+      processed = processed.replace(/[ \t]+/g, ' ');
+      processed = processed.replace(/\n[ \t]+/g, '\n');
+      processed = processed.replace(/[ \t]+\n/g, '\n');
+
+      return processed;
+    }
+  );
 }
 
 /**
@@ -315,6 +443,37 @@ export function fixDoubleUnderscore(markdown: string) {
       s=> s, // end of code
       s=> s.replaceAll('__', '\\_\\_'), // replace __ with \_\_ when out of code
   );
+}
+
+/**
+ * Escape curly brackets in API endpoint patterns
+ * This handles cases like: POST /api/pdf/{documentId}/processing/finalize
+ */
+export function escapeApiEndpoints(markdown: string): string {
+  return processCodeBlockLines(
+      markdown,
+      s=> s, // start code
+      s=> s, // in code - don't escape here as it's already handled in code() method
+      s=> s, // end of code
+      s=> escapeApiEndpointPatterns(s), // escape API endpoint patterns when out of code
+  );
+}
+
+/**
+ * Escape curly brackets in API endpoint patterns
+ */
+function escapeApiEndpointPatterns(text: string): string {
+  // Only process lines that don't contain JIRA markup
+  // This avoids interfering with already processed JIRA syntax
+  if (text.includes('{color') || text.includes('{code') || text.includes('{{')) {
+    return text;
+  }
+
+  // Look for patterns like /api/something/{variable}/something or GET /api/.../{variable}/...
+  // This regex matches API endpoint patterns with curly brackets, including HTTP methods
+  return text.replace(/((?:GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+\/)?[a-zA-Z0-9\/\-\.]*\{[^}]+\}[a-zA-Z0-9\/\-\.]*/g, (match) => {
+    return match.replace(/\{/g, '\\{').replace(/\}/g, '\\}');
+  });
 }
 
 

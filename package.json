@@ -5,11 +5,11 @@
   "author": "joel.lof@icloud.com",
   "license": "MIT",
   "devDependencies": {
-    "marked": "9.1.0",
+    "@types/bun": "^1.2.23",
     "bun-types": "1.2.11",
-    "highlight.js": "11.9.0"
+    "highlight.js": "11.9.0",
+    "marked": "9.1.0"
   },
-  "dependencies": {},
   "module": "src/index.ts",
   "type": "module",
   "private": true,
