@@ -1,4 +1,4 @@
-import { cp } from 'fs/promises'
+import { cp, writeFile } from 'fs/promises'
 
 await Bun.build({
   entrypoints: ['src/index.html'],
@@ -10,3 +10,6 @@ await Bun.build({
 
 // Copy assets folder to dist
 await cp('src/assets', 'dist/assets', { recursive: true })
+
+// Create .nojekyll file for GitHub Pages
+await writeFile('dist/.nojekyll', '')
